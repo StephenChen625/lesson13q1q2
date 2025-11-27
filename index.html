@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>几何面积规律探究</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: none;
+            user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+        }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            width: 100%; 
+        }
+        .mode-btn {
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            background-color: #4f46e5; /* indigo-600 */
+            color: white;
+            border-color: #4f46e5;
+        }
+        .mode-btn:not(.active) {
+            background-color: white;
+            color: #475569; /* slate-600 */
+            border-color: #cbd5e1;
+        }
+        .fade-enter {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        .fade-enter-active {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-4">
+
+    <!-- Mode Switcher -->
+    <div class="w-full max-w-lg mb-6 flex space-x-2">
+        <button onclick="switchMode('para')" id="btn-para" class="mode-btn flex-1 py-2 px-4 rounded-lg border font-medium text-sm shadow-sm active">
+            探究一：平行四边形
+        </button>
+        <button onclick="switchMode('square')" id="btn-square" class="mode-btn flex-1 py-2 px-4 rounded-lg border font-medium text-sm shadow-sm">
+            探究二：正方形中点
+        </button>
+    </div>
+
+    <!-- Header Description (Dynamic) -->
+    <div class="w-full max-w-lg mb-4 text-center min-h-[80px] flex items-center justify-center">
+        <div id="desc-para" class="w-full">
+            <h1 class="text-xl font-bold text-slate-800 mb-1">平行四边形内的面积规律</h1>
+            <p class="text-sm text-slate-600 bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                上下两个<span class="font-bold text-slate-500">白色三角形</span>面积为 <span class="font-bold text-blue-600">3</span> 和 <span class="font-bold text-blue-600">5</span>。<br>
+                拖动 P 点，猜想左右<span class="font-bold text-indigo-500">蓝色阴影</span>面积之和。
+            </p>
+        </div>
+        <div id="desc-square" class="hidden w-full">
+            <h1 class="text-xl font-bold text-slate-800 mb-1">正方形与中点连线</h1>
+            <p class="text-sm text-slate-600 bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                P 点与正方形四条边的<span class="font-bold text-amber-600">中点</span>相连。<br>
+                拖动 P 点，观察这 4 个四边形的面积数值有什么关系？
+            </p>
+        </div>
+    </div>
+
+    <!-- Canvas Container -->
+    <div class="relative w-full max-w-lg flex justify-center">
+        <canvas id="geoCanvas"></canvas>
+    </div>
+
+    <!-- Data Display & Interaction (Dynamic Content) -->
+    <div id="panel-para" class="w-full max-w-lg mt-4">
+        <!-- Para: Interaction -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex items-center justify-center space-x-2 mb-2">
+                <span class="text-slate-600 text-sm font-medium">猜想：蓝色阴影面积之和 = </span>
+                <input type="number" id="guessPara" class="border border-slate-300 rounded px-3 py-1.5 w-20 text-center focus:ring-2 focus:ring-indigo-500 font-bold" placeholder="?">
+                <button onclick="checkPara()" class="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-indigo-700">验证</button>
+            </div>
+            
+            <!-- Correct Feedback -->
+            <div id="explanation" class="hidden mt-6 p-4 bg-green-50 rounded-xl border border-green-100 text-center">
+                <h3 class="text-lg font-bold text-green-700 mb-2">恭喜你，猜对了！</h3>
+                <p class="text-slate-700 text-sm leading-relaxed">
+                    答案确实是 8。<br>
+                    <span class="font-bold text-indigo-600">💡 思考提示：</span><br>
+                    为什么 P 点移动不会改变结果？<br>
+                    试着把 P 点拖动到某些<span class="font-bold">特殊位置</span>（比如边上或顶点），结合图形的<span class="font-bold">底和高</span>来思考一下原理。
+                </p>
+            </div>
+
+            <!-- Wrong Feedback -->
+            <div id="wrongHint" class="hidden mt-6 p-4 bg-red-50 rounded-xl border border-red-100 text-center text-red-600 font-medium">
+                答案不太对哦。<br>试着把 P 点拖动到不同位置，多观察观察，猜想有什么规律？
+            </div>
+        </div>
+    </div>
+
+    <div id="panel-square" class="w-full max-w-lg mt-4 hidden">
+        <!-- Square: Interaction -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <div class="text-center mb-4">
+                <span class="inline-block bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full border border-amber-200 font-semibold mb-2">
+                    ⚠️ 注意
+                </span>
+                <p class="text-sm text-slate-600">
+                    此模型中正方形的总面积设定为 <strong>200</strong>（与原题数据不同）。<br>
+                    仅供探索图形间的数量规律使用。
+                </p>
+            </div>
+
+            <h3 class="text-sm font-bold text-slate-700 mb-4 text-center border-t pt-4">数据观察面板</h3>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-red-50 p-3 rounded-lg border border-red-100 flex flex-col items-center">
+                    <span class="text-xs text-red-400 font-bold uppercase mb-1">左上区域</span>
+                    <span id="sqAreaTL" class="text-xl font-bold text-red-700 font-mono">--</span>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-100 flex flex-col items-center">
+                    <span class="text-xs text-blue-400 font-bold uppercase mb-1">右上区域</span>
+                    <span id="sqAreaTR" class="text-xl font-bold text-blue-700 font-mono">--</span>
+                </div>
+                <div class="bg-amber-50 p-3 rounded-lg border border-amber-100 flex flex-col items-center">
+                    <span class="text-xs text-amber-400 font-bold uppercase mb-1">左下区域</span>
+                    <span id="sqAreaBL" class="text-xl font-bold text-amber-700 font-mono">--</span>
+                </div>
+                <div class="bg-green-50 p-3 rounded-lg border border-green-100 flex flex-col items-center">
+                    <span class="text-xs text-green-400 font-bold uppercase mb-1">右下区域</span>
+                    <span id="sqAreaBR" class="text-xl font-bold text-green-700 font-mono">--</span>
+                </div>
+            </div>
+            
+            <p class="text-xs text-slate-400 mt-4 text-center italic">
+                拖动红点 P，盯着这四个数字，你能发现什么秘密吗？
+            </p>
+        </div>
+        
+    </div>
+
+    <footer class="mt-8 w-full text-center text-sm text-gray-500">
+        © <script>document.write(new Date().getFullYear());</script> 孙维刚教育研究院-陈硕老师 保留所有权利。
+    </footer>
+
+    <script>
+        // --- Core Setup ---
+        const canvas = document.getElementById('geoCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let dpr = 1;
+        let mode = 'para'; // 'para' or 'square'
+        let isDragging = false;
+        
+        // Geometry State
+        // Para: A, B, C, D, P
+        // Square: Vertices (tl, tr, br, bl), Midpoints (mt, mr, mb, ml), P
+        let geom = {}; 
+
+        // Constants
+        const PADDING = 40;
+        
+        // --- Initialization ---
+        function init() {
+            resizeCanvas();
+            resetGeometry();
+            draw();
+            
+            // Listeners
+            window.addEventListener('resize', () => { resizeCanvas(); resetGeometry(); draw(); });
+            
+            // Mouse/Touch
+            canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+            window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+            window.addEventListener('mouseup', handleEnd);
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                handleStart(e.touches[0].clientX, e.touches[0].clientY);
+            }, {passive: false});
+            window.addEventListener('touchmove', e => {
+                if(isDragging) e.preventDefault();
+                handleMove(e.touches[0].clientX, e.touches[0].clientY);
+            }, {passive: false});
+            window.addEventListener('touchend', handleEnd);
+        }
+
+        function resizeCanvas() {
+            const parentWidth = canvas.parentElement.clientWidth;
+            // Para needs 4:3 roughly, Square needs 1:1 roughly. Let's compromise or adapt.
+            // Let's use a square canvas logic but clamp height for mobile
+            let logicalHeight = parentWidth * 0.8; 
+            if (mode === 'square') logicalHeight = parentWidth * 0.9; 
+
+            dpr = window.devicePixelRatio || 1;
+            canvas.width = parentWidth * dpr;
+            canvas.height = logicalHeight * dpr;
+            canvas.style.width = parentWidth + 'px';
+            canvas.style.height = logicalHeight + 'px';
+            ctx.scale(dpr, dpr);
+            width = parentWidth;
+            height = logicalHeight;
+        }
+
+        function switchMode(newMode) {
+            mode = newMode;
+            
+            // Toggle UI Buttons
+            document.getElementById('btn-para').className = `mode-btn flex-1 py-2 px-4 rounded-lg border font-medium text-sm shadow-sm ${mode === 'para' ? 'active' : ''}`;
+            document.getElementById('btn-square').className = `mode-btn flex-1 py-2 px-4 rounded-lg border font-medium text-sm shadow-sm ${mode === 'square' ? 'active' : ''}`;
+            
+            // Toggle Content Panels
+            document.getElementById('desc-para').className = mode === 'para' ? 'w-full fade-enter-active' : 'hidden';
+            document.getElementById('desc-square').className = mode === 'square' ? 'w-full fade-enter-active' : 'hidden';
+            document.getElementById('panel-para').className = mode === 'para' ? 'w-full max-w-lg mt-4 fade-enter-active' : 'hidden';
+            document.getElementById('panel-square').className = mode === 'square' ? 'w-full max-w-lg mt-4 fade-enter-active' : 'hidden';
+
+            // Reset Interaction State
+            document.getElementById('guessPara').value = '';
+            // Reset feedback for para
+            document.getElementById('explanation').classList.add('hidden');
+            document.getElementById('wrongHint').classList.add('hidden');
+
+            resizeCanvas(); // Adjust height
+            resetGeometry();
+            draw();
+        }
+
+        function resetGeometry() {
+            const wAvailable = width - PADDING * 2;
+            const hAvailable = height - PADDING * 2;
+
+            if (mode === 'para') {
+                const slant = width * 0.15;
+                // Top Left, Bottom Left, Bottom Right, Top Right
+                geom.A = { x: PADDING + slant, y: PADDING };
+                geom.B = { x: PADDING, y: height - PADDING };
+                geom.C = { x: width - PADDING - slant, y: height - PADDING };
+                geom.D = { x: width - PADDING, y: PADDING };
+                
+                // Init P for target areas 3 and 5
+                // Total H
+                const totalH = geom.B.y - geom.A.y;
+                // h1 = (3/8) * totalH
+                const h1 = (3/8) * totalH;
+                geom.P = { x: width/2, y: geom.A.y + h1 };
+                
+                // Calculate scale factor for display
+                // Base width
+                const base = geom.D.x - geom.A.x;
+                const pixelAreaTop = 0.5 * base * h1;
+                geom.scale = 3.0 / pixelAreaTop;
+                
+                // Set initial values for Para logic
+                geom.sTop = 3.00;
+                geom.sBottom = 5.00;
+
+            } else if (mode === 'square') {
+                // Centered Square
+                const side = Math.min(wAvailable, hAvailable);
+                const ox = (width - side) / 2;
+                const oy = (height - side) / 2;
+                
+                geom.sqTL = { x: ox, y: oy };
+                geom.sqTR = { x: ox + side, y: oy };
+                geom.sqBR = { x: ox + side, y: oy + side };
+                geom.sqBL = { x: ox, y: oy + side };
+                
+                // Midpoints
+                geom.mMidT = { x: ox + side/2, y: oy };
+                geom.mMidR = { x: ox + side, y: oy + side/2 };
+                geom.mMidB = { x: ox + side/2, y: oy + side };
+                geom.mMidL = { x: ox, y: oy + side/2 };
+
+                // Initial P (slightly off center to make it interesting)
+                geom.P = { x: ox + side*0.6, y: oy + side*0.4 };
+                
+                // Scale: Let Square Area = 200 for exploration (different from original problem)
+                const pxArea = side * side;
+                geom.scale = 200.0 / pxArea;
+            }
+            updateData();
+        }
+
+        // --- Logic & Math ---
+        
+        function triangleArea(p1, p2, p3) {
+            return Math.abs((p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y)) / 2.0);
+        }
+
+        // Shoelace formula for convex quadrilateral order: v1, v2, v3, v4
+        function quadArea(v1, v2, v3, v4) {
+             // Split into two triangles v1-v2-v3 and v1-v3-v4
+             return triangleArea(v1,v2,v3) + triangleArea(v1,v3,v4);
+        }
+
+        function updateData() {
+            if (mode === 'para') {
+                const sTop = triangleArea(geom.A, geom.D, geom.P) * geom.scale;
+                const sBottom = triangleArea(geom.B, geom.C, geom.P) * geom.scale;
+                
+                // Store for drawing
+                geom.sTop = sTop;
+                geom.sBottom = sBottom;
+                
+            } else {
+                // Square Mode
+                // 4 Regions:
+                // TL Quad: sqTL -> mMidT -> P -> mMidL
+                const sTL = quadArea(geom.sqTL, geom.mMidT, geom.P, geom.mMidL) * geom.scale;
+                // TR Quad: sqTR -> mMidR -> P -> mMidT (Order matters for visual polygon, area func is flexible if convex)
+                const sTR = quadArea(geom.sqTR, geom.mMidR, geom.P, geom.mMidT) * geom.scale;
+                // BR Quad: sqBR -> mMidB -> P -> mMidR
+                const sBR = quadArea(geom.sqBR, geom.mMidB, geom.P, geom.mMidR) * geom.scale;
+                // BL Quad: sqBL -> mMidL -> P -> mMidB
+                const sBL = quadArea(geom.sqBL, geom.mMidL, geom.P, geom.mMidB) * geom.scale;
+
+                // Store for drawing
+                geom.sTL = sTL;
+                geom.sTR = sTR;
+                geom.sBR = sBR;
+                geom.sBL = sBL;
+
+                // Update UI numbers
+                document.getElementById('sqAreaTL').innerText = sTL.toFixed(1);
+                document.getElementById('sqAreaTR').innerText = sTR.toFixed(1);
+                document.getElementById('sqAreaBR').innerText = sBR.toFixed(1);
+                document.getElementById('sqAreaBL').innerText = sBL.toFixed(1);
+            }
+        }
+
+        function formatNum(n) {
+            if (Math.abs(n - Math.round(n)) < 0.01) return Math.round(n).toFixed(2);
+            return n.toFixed(2);
+        }
+
+        function clampP(x, y) {
+            if (mode === 'para') {
+                // Clamp inside parallelogram logic
+                let newY = Math.max(geom.A.y, Math.min(geom.B.y, y));
+                const slopeLeft = (geom.B.x - geom.A.x) / (geom.B.y - geom.A.y);
+                const xLeft = geom.A.x + (newY - geom.A.y) * slopeLeft;
+                const slopeRight = (geom.C.x - geom.D.x) / (geom.C.y - geom.D.y);
+                const xRight = geom.D.x + (newY - geom.D.y) * slopeRight;
+                let newX = Math.max(xLeft, Math.min(xRight, x));
+                return { x: newX, y: newY };
+            } else {
+                // Clamp inside square
+                let newX = Math.max(geom.sqTL.x, Math.min(geom.sqTR.x, x));
+                let newY = Math.max(geom.sqTL.y, Math.min(geom.sqBL.y, y));
+                return { x: newX, y: newY };
+            }
+        }
+
+        // --- Drawing ---
+
+        function drawAreaLabel(x, y, text, color) {
+            ctx.fillStyle = color || '#334155';
+            ctx.font = 'bold 15px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, x, y);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            if (mode === 'para') {
+                drawParallelogramMode();
+            } else {
+                drawSquareMode();
+            }
+        }
+
+        function drawParallelogramMode() {
+            // Fill Blue Areas
+            ctx.fillStyle = '#dbeafe';
+            ctx.beginPath(); ctx.moveTo(geom.A.x, geom.A.y); ctx.lineTo(geom.B.x, geom.B.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(geom.D.x, geom.D.y); ctx.lineTo(geom.C.x, geom.C.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.fill();
+
+            // Fill White Areas
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.moveTo(geom.A.x, geom.A.y); ctx.lineTo(geom.D.x, geom.D.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(geom.B.x, geom.B.y); ctx.lineTo(geom.C.x, geom.C.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.fill();
+
+            // Outline
+            ctx.beginPath();
+            ctx.moveTo(geom.A.x, geom.A.y); ctx.lineTo(geom.D.x, geom.D.y); ctx.lineTo(geom.C.x, geom.C.y); ctx.lineTo(geom.B.x, geom.B.y); ctx.closePath();
+            ctx.lineWidth = 3; ctx.strokeStyle = '#1e3a8a'; ctx.stroke();
+
+            // Inner Lines
+            ctx.lineWidth = 2; ctx.strokeStyle = '#3b82f6';
+            ctx.beginPath(); ctx.moveTo(geom.A.x, geom.A.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(geom.B.x, geom.B.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(geom.C.x, geom.C.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(geom.D.x, geom.D.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.stroke();
+
+            // P
+            drawPoint(geom.P, 'P', '#ef4444');
+
+            // Draw Area Labels on top of everything
+            if (geom.sTop !== undefined) {
+                // Top Centroid
+                drawAreaLabel((geom.A.x + geom.D.x + geom.P.x)/3, (geom.A.y + geom.D.y + geom.P.y)/3, formatNum(geom.sTop));
+                // Bottom Centroid
+                drawAreaLabel((geom.B.x + geom.C.x + geom.P.x)/3, (geom.B.y + geom.C.y + geom.P.y)/3, formatNum(geom.sBottom));
+            }
+        }
+
+        function drawSquareMode() {
+            // Fill 4 regions with distinct tints
+            
+            // TL (Red tint)
+            ctx.fillStyle = '#fef2f2';
+            ctx.beginPath(); ctx.moveTo(geom.sqTL.x, geom.sqTL.y); ctx.lineTo(geom.mMidT.x, geom.mMidT.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.lineTo(geom.mMidL.x, geom.mMidL.y); ctx.fill();
+            
+            // TR (Blue tint)
+            ctx.fillStyle = '#eff6ff';
+            ctx.beginPath(); ctx.moveTo(geom.sqTR.x, geom.sqTR.y); ctx.lineTo(geom.mMidR.x, geom.mMidR.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.lineTo(geom.mMidT.x, geom.mMidT.y); ctx.fill();
+
+            // BR (Green tint)
+            ctx.fillStyle = '#f0fdf4';
+            ctx.beginPath(); ctx.moveTo(geom.sqBR.x, geom.sqBR.y); ctx.lineTo(geom.mMidB.x, geom.mMidB.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.lineTo(geom.mMidR.x, geom.mMidR.y); ctx.fill();
+
+            // BL (Yellow/Amber tint)
+            ctx.fillStyle = '#fffbeb';
+            ctx.beginPath(); ctx.moveTo(geom.sqBL.x, geom.sqBL.y); ctx.lineTo(geom.mMidL.x, geom.mMidL.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.lineTo(geom.mMidB.x, geom.mMidB.y); ctx.fill();
+
+            // Outline Square
+            ctx.lineWidth = 3; ctx.strokeStyle = '#334155';
+            ctx.beginPath(); 
+            ctx.moveTo(geom.sqTL.x, geom.sqTL.y); ctx.lineTo(geom.sqTR.x, geom.sqTR.y); 
+            ctx.lineTo(geom.sqBR.x, geom.sqBR.y); ctx.lineTo(geom.sqBL.x, geom.sqBL.y); 
+            ctx.closePath(); ctx.stroke();
+
+            // Draw Inner Lines
+            ctx.lineWidth = 2; ctx.strokeStyle = '#64748b';
+            ctx.beginPath(); ctx.moveTo(geom.mMidT.x, geom.mMidT.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(geom.mMidR.x, geom.mMidR.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(geom.mMidB.x, geom.mMidB.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(geom.mMidL.x, geom.mMidL.y); ctx.lineTo(geom.P.x, geom.P.y); ctx.stroke();
+
+            // Draw Midpoint Marks (Double tick)
+            drawTick(geom.mMidT, true);
+            drawTick(geom.mMidR, false);
+            drawTick(geom.mMidB, true);
+            drawTick(geom.mMidL, false);
+
+            // Draw P
+            drawPoint(geom.P, 'P', '#ef4444');
+
+            // Draw Area Labels
+            if (geom.sTL !== undefined) {
+                // Approximate centers for quadrilaterals (average of 4 points)
+                drawAreaLabel((geom.sqTL.x + geom.mMidT.x + geom.P.x + geom.mMidL.x)/4, (geom.sqTL.y + geom.mMidT.y + geom.P.y + geom.mMidL.y)/4, geom.sTL.toFixed(1), '#991b1b');
+                drawAreaLabel((geom.sqTR.x + geom.mMidR.x + geom.P.x + geom.mMidT.x)/4, (geom.sqTR.y + geom.mMidR.y + geom.P.y + geom.mMidT.y)/4, geom.sTR.toFixed(1), '#1e40af');
+                drawAreaLabel((geom.sqBR.x + geom.mMidB.x + geom.P.x + geom.mMidR.x)/4, (geom.sqBR.y + geom.mMidB.y + geom.P.y + geom.mMidR.y)/4, geom.sBR.toFixed(1), '#166534');
+                drawAreaLabel((geom.sqBL.x + geom.mMidL.x + geom.P.x + geom.mMidB.x)/4, (geom.sqBL.y + geom.mMidL.y + geom.P.y + geom.mMidB.y)/4, geom.sBL.toFixed(1), '#b45309');
+            }
+        }
+
+        function drawTick(pt, isHorizontal) {
+            ctx.lineWidth = 2; ctx.strokeStyle = '#0f172a';
+            const len = 6;
+            ctx.beginPath();
+            if (isHorizontal) {
+                ctx.moveTo(pt.x, pt.y - len); ctx.lineTo(pt.x, pt.y + len);
+                ctx.moveTo(pt.x + 4, pt.y - len); ctx.lineTo(pt.x + 4, pt.y + len);
+            } else {
+                ctx.moveTo(pt.x - len, pt.y); ctx.lineTo(pt.x + len, pt.y);
+                ctx.moveTo(pt.x - len, pt.y + 4); ctx.lineTo(pt.x + len, pt.y + 4);
+            }
+            ctx.stroke();
+        }
+
+        function drawPoint(pt, label, color) {
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.fillStyle = color;
+            ctx.font = 'bold 16px Arial';
+            ctx.fillText(label, pt.x + 12, pt.y + 5);
+        }
+
+        // --- Interaction Handlers ---
+
+        function handleStart(x, y) {
+            const rect = canvas.getBoundingClientRect();
+            const mx = x - rect.left;
+            const my = y - rect.top;
+            
+            const dist = Math.sqrt((mx - geom.P.x)**2 + (my - geom.P.y)**2);
+            if (dist < 30) isDragging = true;
+        }
+
+        function handleMove(x, y) {
+            if (!isDragging) return;
+            const rect = canvas.getBoundingClientRect();
+            geom.P = clampP(x - rect.left, y - rect.top);
+            updateData();
+            draw();
+        }
+
+        function handleEnd() { isDragging = false; }
+
+        // --- UI Logic ---
+
+        function checkPara() {
+            const val = parseFloat(document.getElementById('guessPara').value);
+            const explanation = document.getElementById('explanation');
+            const wrongHint = document.getElementById('wrongHint');
+            
+            // Reset visibility
+            explanation.classList.add('hidden');
+            wrongHint.classList.add('hidden');
+
+            if (Math.abs(val - 8) < 0.1) {
+                explanation.classList.remove('hidden');
+            } else {
+                wrongHint.classList.remove('hidden');
+            }
+        }
+
+        // Boot
+        init();
+        
+    </script>
+</body>
+</html>
